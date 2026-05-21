@@ -1,5 +1,94 @@
 import streamlit as st
 import cv2
+import numpy as np
+from PIL import Image
+import os
+
+# --- KONFIGURATION ---
+# Falls dein Modell in einem Unterordner liegt, passe den Pfad hier an.
+# Wenn die Datei direkt im selben Ordner wie app.py liegt, reicht "yolov12n-face.pt"
+MODEL_PATH = "ki_modell/yolov12n-face.pt" 
+
+# Falls der Ordner anders heißt, kannst du ihn hier dynamisch suchen:
+if not os.path.exists(MODEL_PATH):
+    # Fallback, falls das Modell im Hauptverzeichnis liegt
+    if os.path.exists("yolov12n-face.pt"):
+        MODEL_PATH = "yolov12n-face.pt"
+
+# --- KI MODELL LADEN ---
+@st.cache_resource
+def load_yolo_model(path):
+    try:
+        from ultralytics import YOLO
+        if os.path.exists(path):
+            return YOLO(path)
+        else:
+            return None
+    except ImportError:
+        return None
+
+model = load_yolo_model(MODEL_PATH)
+
+# --- STREAMLIT UI ---
+st.set_page_config(
+    page_title="YOLOv12 Gesichtserkennung",
+    page_icon="🤖",
+    layout="centered"
+)
+
+st.title("🤖 YOLOv12 Gesichtserkennung")
+st.write("Lade ein Bild hoch, und die KI wird automatisch Gesichter darin erkennen.")
+
+# Überprüfung, ob das Modell und die Library korrekt geladen wurden
+if model is None:
+    st.error(f"Fehler: Das Modell konnte unter '{MODEL_PATH}' nicht gefunden werden oder `ultralytics` ist nicht installiert.")
+    st.info("Bitte stelle sicher, dass die Datei `yolov12n-face.pt` im richtigen Ordner liegt und `ultralytics` in den Requirements steht.")
+else:
+    st.success("YOLOv12-Modell erfolgreich geladen!")
+
+    # Datei-Uploader für den Nutzer
+    uploaded_file = st.file_uploader("Wähle ein Bild aus...", type=["jpg", "jpeg", "png"])
+
+    if uploaded_file is not None:
+        # Bild mit PIL öffnen
+        image = Image.open(uploaded_file)
+        
+        # Streamlit Spalten für Vorher/Nachher
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Originalbild")
+            st.image(image, use_container_width=True)
+            
+        with col2:
+            st.subheader("KI-Erkennung")
+            
+            # Vorhersage starten, wenn der Button geklickt wird
+            if st.button("Gesichter erkennen", type="primary"):
+                with st.spinner("Modell analysiert das Bild..."):
+                    # Konvertiere PIL-Bild zu einem Format, das YOLO versteht (OpenCV/NumPy)
+                    img_array = np.array(image)
+                    
+                    # KI-Vorhersage ausführen
+                    results = model(img_array)
+                    
+                    # Ergebnisse auf dem Bild einzeichnen (.plot() gibt ein BGR-Bild zurück)
+                    res_plotted = results[0].plot()
+                    
+                    # Konvertiere BGR zurück zu RGB für Streamlit
+                    res_rgb = cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB)
+                    
+                    # Anzahl der erkannten Gesichter auslesen
+                    num_faces = len(results[0].boxes)
+                    
+                    # Ergebnis anzeigen
+                    st.image(res_rgb, use_container_width=True)
+                    
+                    if num_faces > 0:
+                        st.metric(label="Erkannte Gesichter", value=num_faces)
+                    else:
+                        st.warning("Keine Gesichter im Bild gefunden.")import streamlit as st
+import cv2
 from ultralytics import YOLO
 from deepface import DeepFace
 import numpy as np
