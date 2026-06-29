@@ -1,112 +1,38 @@
 import streamlit as st
 import cv2
+from ultralytics import YOLO
+from deepface import DeepFace
 import numpy as np
-from PIL import Image
 import os
 
-# --- KONFIGURATION ---
-# Falls dein Modell in einem Unterordner liegt, passe den Pfad hier an.
-# Wenn die Datei direkt im selben Ordner wie app.py liegt, reicht "yolov12n-face.pt"
-MODEL_PATH = "ki_modell/yolov12n-face.pt" 
-
-# Falls der Ordner anders heißt, kannst du ihn hier dynamisch suchen:
+# --- MODEL-KONFIGURATION ---
+# Wir prüfen dynamisch, wo dein Modell liegt (entweder in 'models/' oder im Hauptverzeichnis)
+MODEL_PATH = "models/yolov12n-face(1).pt"
 if not os.path.exists(MODEL_PATH):
-    # Fallback, falls das Modell im Hauptverzeichnis liegt
-    if os.path.exists("yolov12n-face.pt"):
-        MODEL_PATH = "yolov12n-face.pt"
+    if os.path.exists("yolov12n-face(1).pt"):
+        MODEL_PATH = "yolov12n-face(1).pt"
 
-# --- KI MODELL LADEN ---
+# --- INTERFACE KONFIGURIEREN ---
+st.set_page_config(page_title="AI Emotion Story Game", page_icon="🎭", layout="centered")
+
+# KI-Modelle laden und cachen, damit der Server stabil bleibt
 @st.cache_resource
-def load_yolo_model(path):
+def load_models(path):
     try:
-        from ultralytics import YOLO
         if os.path.exists(path):
             return YOLO(path)
         else:
             return None
-    except ImportError:
+    except Exception:
         return None
 
-model = load_yolo_model(MODEL_PATH)
+face_model = load_models(MODEL_PATH)
 
-# --- STREAMLIT UI ---
-st.set_page_config(
-    page_title="YOLOv12 Gesichtserkennung",
-    page_icon="🤖",
-    layout="centered"
-)
-
-st.title("🤖 YOLOv12 Gesichtserkennung")
-st.write("Lade ein Bild hoch, und die KI wird automatisch Gesichter darin erkennen.")
-
-# Überprüfung, ob das Modell und die Library korrekt geladen wurden
-if model is None:
-    st.error(f"Fehler: Das Modell konnte unter '{MODEL_PATH}' nicht gefunden werden oder `ultralytics` ist nicht installiert.")
-    st.info("Bitte stelle sicher, dass die Datei `yolov12n-face.pt` im richtigen Ordner liegt und `ultralytics` in den Requirements steht.")
-else:
-    st.success("YOLOv12-Modell erfolgreich geladen!")
-
-    # Datei-Uploader für den Nutzer
-    uploaded_file = st.file_uploader("Wähle ein Bild aus...", type=["jpg", "jpeg", "png"])
-
-    if uploaded_file is not None:
-        # Bild mit PIL öffnen
-        image = Image.open(uploaded_file)
-        
-        # Streamlit Spalten für Vorher/Nachher
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Originalbild")
-            st.image(image, use_container_width=True)
-            
-        with col2:
-            st.subheader("KI-Erkennung")
-            
-            # Vorhersage starten, wenn der Button geklickt wird
-            if st.button("Gesichter erkennen", type="primary"):
-                with st.spinner("Modell analysiert das Bild..."):
-                    # Konvertiere PIL-Bild zu einem Format, das YOLO versteht (OpenCV/NumPy)
-                    img_array = np.array(image)
-                    
-                    # KI-Vorhersage ausführen
-                    results = model(img_array)
-                    
-                    # Ergebnisse auf dem Bild einzeichnen (.plot() gibt ein BGR-Bild zurück)
-                    res_plotted = results[0].plot()
-                    
-                    # Konvertiere BGR zurück zu RGB für Streamlit
-                    res_rgb = cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB)
-                    
-                    # Anzahl der erkannten Gesichter auslesen
-                    num_faces = len(results[0].boxes)
-                    
-                    # Ergebnis anzeigen
-                    st.image(res_rgb, use_container_width=True)
-                    
-                    if num_faces > 0:
-        st.metric(label="Erkannte Gesichter", value=num_faces)
-    else:
-        st.warning("Keine Gesichter im Bild gefunden.")
-import cv2
-from ultralytics import YOLO
-from deepface import DeepFace
-import numpy as np
-
-# Seite konfigurieren
-st.set_page_config(page_title="AI Emotion Story Game", page_icon="🎭", layout="centered")
-
-# KI-Modelle laden und cachen, damit der Server nicht bei jedem Klick neu lädt
-@st.cache_resource
-def load_models():
-    # Lädt dein hochgeladenes YOLOv12-Face-Modell aus dem Ordner
-    face_model = YOLO("models/yolov12n-face(1).pt")
-    return face_model
-
-try:
-    face_model = load_models()
-except Exception as e:
-    st.error("Fehler beim Laden des YOLO-Modells. Stelle sicher, dass es im Ordner 'models/' liegt.")
+# Überprüfung, ob das Modell geladen werden konnte
+if face_model is None:
+    st.error(f"Fehler: Das YOLO-Modell konnte unter '{MODEL_PATH}' nicht gefunden werden.")
+    st.info("Bitte stelle sicher, dass die Datei exakt so heißt und am richtigen Platz liegt.")
+    st.stop()
 
 # Spielstand (Story-State) initialisieren
 if "story_step" not in st.session_state:
@@ -115,7 +41,7 @@ if "story_step" not in st.session_state:
 st.title("🎭 Das Geheimnis des Tempels")
 st.subheader("Ein interaktives Story-Game gesteuert durch deine Emotionen")
 
-# Story-Logik
+# --- STORY-LOGIK ---
 if st.session_state.story_step == 1:
     st.markdown("""
     ### Kapitel 1: Das verschlossene Tor
@@ -146,7 +72,7 @@ else:
 
 st.write("---")
 
-# Kamera-Input (Streamlit holt sich hier automatisch die Webcam-Rechte im Browser des Spielers)
+# --- WEBCAM INPUT ---
 img_file_buffer = st.camera_input("Schau in die Kamera für die KI-Erkennung:")
 
 if img_file_buffer is not None:
@@ -161,28 +87,32 @@ if img_file_buffer is not None:
     if len(boxes) == 0:
         st.warning("🤖 Ich kann dein Gesicht nicht sehen. Bitte positioniere dich besser vor der Kamera.")
     else:
-        # Box des ersten erkannten Gesichts ausschneiden
+        # Box des ersten erkannten Gesichts ausschneiden (Cropping)
         box = boxes[0].xyxy[0].cpu().numpy().astype(int)
         x1, y1, x2, y2 = box
         face_crop = cv2_img[y1:y2, x1:x2]
         
         if face_crop.size > 0:
             try:
-                # Schritt 2: Emotion auf dem Ausschnitt erkennen
+                # Schritt 2: Emotion auf dem Ausschnitt erkennen via DeepFace
                 analysis = DeepFace.analyze(face_crop, actions=['emotion'], enforce_detection=False)
                 dominant_emotion = analysis[0]['dominant_emotion']
                 emotion_confidence = analysis[0]['emotion'][dominant_emotion]
                 
-                # Übersetzung für die Spieler
+                # Übersetzung der Emotionen für die UI
                 translations = {
-                    "happy": "Fröhlich 😊", "angry": "Wütend 😡", "sad": "Traurig 😢", 
-                    "fear": "Ängstlich 😨", "surprise": "Überrascht 😲", "neutral": "Neutral 😐"
+                    "happy": "Fröhlich 😊", 
+                    "angry": "Wütend 😡", 
+                    "sad": "Traurig 😢", 
+                    "fear": "Ängstlich 😨", 
+                    "surprise": "Überrascht 😲", 
+                    "neutral": "Neutral 😐"
                 }
                 translated_emotion = translations.get(dominant_emotion, dominant_emotion)
                 
                 st.info(f"Erkannte Emotion: **{translated_emotion}** (Sicherheit: {emotion_confidence:.1f}%)")
                 
-                # Prüfen, ob die Emotion zur Aufgabe passt
+                # Prüfen, ob die gezeigte Emotion der Vorgabe entspricht
                 if dominant_emotion == target_emotion and emotion_confidence > 40:
                     st.success(f"✅ Richtig! Du hast die Emotion '{translated_emotion}' erfolgreich eingesetzt!")
                     if st.button("Weiter zum nächsten Kapitel"):
