@@ -85,9 +85,9 @@ else:
                     st.image(res_rgb, use_container_width=True)
                     
                     if num_faces > 0:
-                        st.metric(label="Erkannte Gesichter", value=num_faces)
-                    else:
-                        st.warning("Keine Gesichter im Bild gefunden.")import streamlit as st
+        st.metric(label="Erkannte Gesichter", value=num_faces)
+    else:
+        st.warning("Keine Gesichter im Bild gefunden.")
 import cv2
 from ultralytics import YOLO
 from deepface import DeepFace
