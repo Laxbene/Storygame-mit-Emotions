@@ -1,7 +1,5 @@
 streamlit
-ultralytics>=8.3.0
-torch==2.3.1+cpu
-torchvision==0.18.1+cpu
+ultralytics==8.3.16
 opencv-python-headless
 deepface
 tf-keras
