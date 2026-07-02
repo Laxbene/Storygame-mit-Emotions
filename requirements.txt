@@ -1,5 +1,5 @@
 streamlit
-ultralytics==8.3.16
 opencv-python-headless
-deepface
-tf-keras
+ultralytics==8.2.0
+deepface==0.0.92
+tensorflow-cpu
